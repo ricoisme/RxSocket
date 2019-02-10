@@ -38,13 +38,13 @@ namespace TcpSocketLib
         {
         }
 
-        public TcpService(string IP,int Port,int Backlog,int BufferSize)
+        public TcpService(string IP,int port,int backlog,int bufferSize)
         {
             IPAddress address = IPAddress.Parse(IP);
-            _serverEndPoint = new IPEndPoint(address, Port);
+            _serverEndPoint = new IPEndPoint(address, port);
             //_listenerTcp = new TcpListener(address, Port);
-            _backlog = Backlog;
-            _bufferSize = BufferSize;
+            _backlog = backlog;
+            _bufferSize = bufferSize;
             _listenerSocket = new Socket(SocketType.Stream, ProtocolType.Tcp);
             _listenerSocket.Bind(_serverEndPoint);
         }
