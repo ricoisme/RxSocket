@@ -22,7 +22,7 @@ namespace TcpSocketLib
 
     public sealed class TcpService : IService
     {       
-        private static bool _accept { get; set; }    
+        private static bool _accept { get; set; }
         private static ConcurrentDictionary<int, Socket> _connections = new ConcurrentDictionary<int, Socket>();
         private CancellationTokenSource _cancellation = new CancellationTokenSource();
         private readonly Socket _listenerSocket;
@@ -31,8 +31,8 @@ namespace TcpSocketLib
         private readonly IPEndPoint _serverEndPoint;
 
         public TcpService(IOptions<ServerConfig> serverConfig)
-            :this(serverConfig.Value.IpAddress, 
-                 serverConfig.Value.Port, 
+            :this(serverConfig.Value.IpAddress,
+                 serverConfig.Value.Port,
                  serverConfig.Value.Backlog,
                  serverConfig.Value.BufferSize)
         {
@@ -42,7 +42,7 @@ namespace TcpSocketLib
         {
             IPAddress address = IPAddress.Parse(IP);
             _serverEndPoint = new IPEndPoint(address, Port);
-            //_listener = new TcpListener(address, Port);
+            //_listenerTcp = new TcpListener(address, Port);
             _backlog = Backlog;
             _bufferSize = BufferSize;
             _listenerSocket = new Socket(SocketType.Stream, ProtocolType.Tcp);
@@ -54,7 +54,6 @@ namespace TcpSocketLib
         void IService.Start()
         {
             _listenerSocket.Listen(_backlog);
-            //_listener.Start();
             _accept = true;
             Console.WriteLine($"Server started. Listening at {this._serverEndPoint.Address}:{this._serverEndPoint.Port}");
             Listen().GetAwaiter().GetResult();
@@ -66,7 +65,7 @@ namespace TcpSocketLib
             {
                 // Continue listening.               
                 while (true)
-                {                  
+                {
                     var socket = await _listenerSocket.AcceptAsync();
                     _ = ProcessLinesAsync(socket,_bufferSize);
                 }
@@ -83,7 +82,7 @@ namespace TcpSocketLib
             Task writing = FillPipeAsync(socket, pipe.Writer, bufferSize);
             Task reading = ReadPipeAsync(socket, pipe.Reader);
 
-            await Task.WhenAll(reading, writing);
+            await Task.WhenAll(reading, writing).ConfigureAwait(false);
 
             Console.WriteLine($"[{socket.RemoteEndPoint}]: disconnected");
         }
@@ -98,14 +97,14 @@ namespace TcpSocketLib
                     // Request a minimum of 1024 bytes from the PipeWriter
                     Memory<byte> memory = writer.GetMemory(minimumBufferSize);
 
-                    int bytesRead = await socket.ReceiveAsync(memory, SocketFlags.None);
+                    int bytesRead = await socket.ReceiveAsync(memory, SocketFlags.None).ConfigureAwait(false);
                     if (bytesRead == 0)
                     {
                         break;
                     }
 
                     // Tell the PipeWriter how much was read
-                    writer.Advance(bytesRead);                 
+                    writer.Advance(bytesRead);
                 }
                 catch
                 {
@@ -113,7 +112,7 @@ namespace TcpSocketLib
                 }
 
                 // Make the data available to the PipeReader
-                FlushResult result = await writer.FlushAsync();
+                FlushResult result = await writer.FlushAsync().ConfigureAwait(false);
 
                 if (result.IsCompleted)
                 {
@@ -129,7 +128,7 @@ namespace TcpSocketLib
         {
             while (true)
             {
-                ReadResult result = await reader.ReadAsync();
+                ReadResult result = await reader.ReadAsync().ConfigureAwait(false);
 
                 ReadOnlySequence<byte> buffer = result.Buffer;
                 SequencePosition? position = null;
@@ -242,14 +241,13 @@ namespace TcpSocketLib
 
         void IService.Stop()
         {
-            ClientDispose();
-            //_cancellation.Token.Register(() => _listenerSocket.Stop());
+            ClientDispose();          
             _cancellation.Token.Register(() =>
             {
                 _listenerSocket.Shutdown(SocketShutdown.Both);
                 _listenerSocket.Close();
                 _accept = false;
-                Console.WriteLine($"{this._serverEndPoint.Address} Server stoped. unmount port {this._serverEndPoint.Port}");
+                Console.WriteLine($"{this._serverEndPoint.Address} Server stooped. unmount port {this._serverEndPoint.Port}");
             });   
         }
     }

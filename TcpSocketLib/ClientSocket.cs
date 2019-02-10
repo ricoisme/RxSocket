@@ -36,8 +36,8 @@ namespace TcpSocketLib
         }
 
         void IClientSocket.Disconnect()
-        {
-            //_clientSocket.Disconnect(true);
+        {           
+            _clientSocket.Shutdown(SocketShutdown.Both);
             _clientSocket.Close();
             Console.WriteLine($"{ _clientSocket.GetHashCode()} Disconnected.");
         }
