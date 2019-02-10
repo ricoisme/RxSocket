@@ -50,7 +50,7 @@ namespace TcpSocketLib
 
         internal byte[] Convert(string message)
         {
-            return Encoding.UTF8.GetBytes(message+Environment.NewLine);//need /n to be endOfLine
+            return Encoding.UTF8.GetBytes(message + '\n');//need \n to be endOfLine
             //var header = BitConverter.GetBytes(body.Length);
             //return header.Concat(body).ToArray();
         }
