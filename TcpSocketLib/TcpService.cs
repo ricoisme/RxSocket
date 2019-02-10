@@ -21,23 +21,30 @@ namespace TcpSocketLib
     }
 
     public sealed class TcpService : IService
-    {
-        private readonly Socket _listenerSocket;
+    {       
         private static bool _accept { get; set; }    
         private static ConcurrentDictionary<int, Socket> _connections = new ConcurrentDictionary<int, Socket>();
         private CancellationTokenSource _cancellation = new CancellationTokenSource();
+        private readonly Socket _listenerSocket;
+        private readonly int _backlog;
+        private readonly int _bufferSize;
         private readonly IPEndPoint _serverEndPoint;
 
         public TcpService(IOptions<ServerConfig> serverConfig)
-            :this(serverConfig.Value.IpAddress, serverConfig.Value.Port)
+            :this(serverConfig.Value.IpAddress, 
+                 serverConfig.Value.Port, 
+                 serverConfig.Value.Backlog,
+                 serverConfig.Value.BufferSize)
         {
         }
 
-        public TcpService(string IP,int Port)
+        public TcpService(string IP,int Port,int Backlog,int BufferSize)
         {
             IPAddress address = IPAddress.Parse(IP);
             _serverEndPoint = new IPEndPoint(address, Port);
             //_listener = new TcpListener(address, Port);
+            _backlog = Backlog;
+            _bufferSize = BufferSize;
             _listenerSocket = new Socket(SocketType.Stream, ProtocolType.Tcp);
             _listenerSocket.Bind(_serverEndPoint);
         }
@@ -46,7 +53,7 @@ namespace TcpSocketLib
 
         void IService.Start()
         {
-            _listenerSocket.Listen(120);
+            _listenerSocket.Listen(_backlog);
             //_listener.Start();
             _accept = true;
             Console.WriteLine($"Server started. Listening at {this._serverEndPoint.Address}:{this._serverEndPoint.Port}");
@@ -61,19 +68,19 @@ namespace TcpSocketLib
                 while (true)
                 {                  
                     var socket = await _listenerSocket.AcceptAsync();
-                    _ = ProcessLinesAsync(socket);
+                    _ = ProcessLinesAsync(socket,_bufferSize);
                 }
             }
         }
 
-        private static async Task ProcessLinesAsync(Socket socket)
+        private static async Task ProcessLinesAsync(Socket socket,int bufferSize)
         {         
             Console.WriteLine($"[{socket.RemoteEndPoint}]: connected");
             _connections.AddOrUpdate(socket.GetHashCode(), socket, (key, oldValue) => socket);
             Console.WriteLine($"Waiting for client... {_connections.Count} connected at the moment.");
 
             var pipe = new Pipe();
-            Task writing = FillPipeAsync(socket, pipe.Writer);
+            Task writing = FillPipeAsync(socket, pipe.Writer, bufferSize);
             Task reading = ReadPipeAsync(socket, pipe.Reader);
 
             await Task.WhenAll(reading, writing);
@@ -81,10 +88,9 @@ namespace TcpSocketLib
             Console.WriteLine($"[{socket.RemoteEndPoint}]: disconnected");
         }
 
-        private static async Task FillPipeAsync(Socket socket, PipeWriter writer)
-        {
-            const int minimumBufferSize = 1024;
-
+        private static async Task FillPipeAsync(Socket socket, PipeWriter writer,
+            int minimumBufferSize)
+        {           
             while (true)
             {
                 try
