@@ -107,6 +107,7 @@ namespace TcpSocketLib
 
             await Task.WhenAll(reading, writing).ConfigureAwait(false);
 
+            _connections.TryRemove(socket.GetHashCode(), out var socketClient);
             Console.WriteLine($"[{socket.RemoteEndPoint}]: disconnected");
         }
 
@@ -201,7 +202,7 @@ namespace TcpSocketLib
                     message.Append(Encoding.UTF8.GetString(segment));
 #endif
                 }
-                MessageReceived(new Record { EndPoint = socket.RemoteEndPoint, Message = message.ToString() });
+                MessageReceived(new Record { EndPoint = socket.RemoteEndPoint, Message = message.ToString(), Error=string.Empty });
             }
         }
 

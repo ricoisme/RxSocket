@@ -58,9 +58,14 @@ namespace SimpleClient
                 else
                 {
                     Console.WriteLine($"{line}  Sending..");
-                    client.SendAsync(line).ConfigureAwait(false);
+                    client.SendAsync(line, ErrorMessageCallback).ConfigureAwait(false);
                 }
             }
+        }
+
+        private static void ErrorMessageCallback(Record record)
+        {
+            Console.WriteLine($"{record.Message} Sent to {record.EndPoint} with Error. {record.Error}");
         }
     }
 }
