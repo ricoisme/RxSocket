@@ -55,7 +55,7 @@ namespace TcpSocketLib
             ShowDisconnected(localEndPoint);
         }
 
-        async Task IClientSocket.SendAsync(string message, Action<Record> errorMessageCallback=null)
+        async Task IClientSocket.SendAsync(string message, Action<Record> errorMessageCallback)
         {
             try
             {
