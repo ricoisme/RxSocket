@@ -4,6 +4,8 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Reactive.Concurrency;
+using System.Reactive.Linq;
 using TcpSocketLib;
 
 namespace SimpleServer
@@ -16,7 +18,25 @@ namespace SimpleServer
             CreateHostBuild();
             Console.CancelKeyPress += Console_CancelKeyPress;
             //AppDomain.CurrentDomain.ProcessExit += CurrentDomain_ProcessExit;
+            tcpServer.Connected += TcpServer_Connected;
+            tcpServer.Disconnected += TcpServer_Disconnected;
+            tcpServer.Messages.SubscribeOn(TaskPoolScheduler.Default)
+                .Subscribe(
+                r => Console.WriteLine($"[{r.EndPoint}]:{r.Message}"),
+                ex=> Console.WriteLine(ex),
+                () => Console.WriteLine("Socket receiver completed")
+                );
             tcpServer?.Start();   
+        }       
+
+        private static void TcpServer_Disconnected()
+        {
+            Console.WriteLine($"{tcpServer.ServerEndPoint.Address} Server stooped. unmount port {tcpServer.ServerEndPoint.Port}");
+        }
+
+        private static void TcpServer_Connected()
+        {
+            Console.WriteLine($"Server started. Listening at {tcpServer.ServerEndPoint.Address}:{tcpServer.ServerEndPoint.Port}");
         }
 
         private static void CreateHostBuild()
@@ -55,6 +75,8 @@ namespace SimpleServer
 
         private static void Console_CancelKeyPress(object sender, ConsoleCancelEventArgs args)
         {
+            tcpServer.Connected -= TcpServer_Connected;
+            tcpServer.Disconnected -= TcpServer_Disconnected;
             tcpServer?.Stop();
             Console.WriteLine("The read operation has been interrupted.");
             Console.WriteLine($"Key pressed: {args.SpecialKey}");

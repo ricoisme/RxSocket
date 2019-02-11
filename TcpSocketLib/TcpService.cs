@@ -6,39 +6,42 @@ using System.Collections.Generic;
 using System.IO.Pipelines;
 using System.Net;
 using System.Net.Sockets;
+using System.Reactive.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
-using System.Threading;
 using System.Threading.Tasks;
 
 namespace TcpSocketLib
 {
     public interface IService
     {
+        event Action Connected;
+        event Action Disconnected;
+        IObservable<Record> Messages { get;}
         void Start();
         void Stop();
         IPEndPoint ServerEndPoint { get; }
     }
 
     public sealed class TcpService : IService
-    {       
+    {
         private static bool _accept { get; set; }
         private static ConcurrentDictionary<int, Socket> _connections = new ConcurrentDictionary<int, Socket>();
-        private CancellationTokenSource _cancellation = new CancellationTokenSource();
+        //private CancellationTokenSource _cancellation = new CancellationTokenSource();
         private readonly Socket _listenerSocket;
         private readonly int _backlog;
         private readonly int _bufferSize;
         private readonly IPEndPoint _serverEndPoint;
 
         public TcpService(IOptions<ServerConfig> serverConfig)
-            :this(serverConfig.Value.IpAddress,
+            : this(serverConfig.Value.IpAddress,
                  serverConfig.Value.Port,
                  serverConfig.Value.Backlog,
                  serverConfig.Value.BufferSize)
         {
         }
 
-        public TcpService(string IP,int port,int backlog,int bufferSize)
+        public TcpService(string IP, int port, int backlog, int bufferSize)
         {
             IPAddress address = IPAddress.Parse(IP);
             _serverEndPoint = new IPEndPoint(address, port);
@@ -49,13 +52,33 @@ namespace TcpSocketLib
             _listenerSocket.Bind(_serverEndPoint);
         }
 
+        private static Action ShowTotalConnections = () =>
+        {
+            Console.WriteLine($"Waiting for client... {_connections.Count} connected at the moment.");
+        };
+
+        private Action<EndPoint> SocketDisposed = (ep) =>
+          {             
+              Console.WriteLine($"[{ep}]: client socket disposed.");
+          };
+
+        public event Action Connected = () => { };
+        public event Action Disconnected = () => { };
+
+        private static event Action<Record> MessageReceived = _ => { };
+
         public IPEndPoint ServerEndPoint => this._serverEndPoint;
+
+        public IObservable<Record> Messages => Observable.FromEvent<Record>
+            (a => MessageReceived += a,
+            a => MessageReceived -= a);
+     
 
         void IService.Start()
         {
             _listenerSocket.Listen(_backlog);
-            _accept = true;
-            Console.WriteLine($"Server started. Listening at {this._serverEndPoint.Address}:{this._serverEndPoint.Port}");
+            _accept = true;         
+            Connected();
             Listen().GetAwaiter().GetResult();
         }
 
@@ -76,7 +99,7 @@ namespace TcpSocketLib
         {         
             Console.WriteLine($"[{socket.RemoteEndPoint}]: connected");
             _connections.AddOrUpdate(socket.GetHashCode(), socket, (key, oldValue) => socket);
-            Console.WriteLine($"Waiting for client... {_connections.Count} connected at the moment.");
+            ShowTotalConnections();
 
             var pipe = new Pipe();
             Task writing = FillPipeAsync(socket, pipe.Writer, bufferSize);
@@ -168,17 +191,17 @@ namespace TcpSocketLib
         private static void ProcessLine(Socket socket, in ReadOnlySequence<byte> buffer)
         {
             if (_accept)
-            {
-                Console.Write($"[{socket.RemoteEndPoint}]: ");
+            {               
+                var message = new StringBuilder();
                 foreach (var segment in buffer)
                 {
 #if NETSTANDARD2_0
-                    Console.Write(Encoding.UTF8.GetString(segment.Span.ToArray()));
+                    message.Append(Encoding.UTF8.GetString(segment.Span.ToArray())); 
 #else
-                    Console.Write(Encoding.UTF8.GetString(segment));
+                    message.Append(Encoding.UTF8.GetString(segment));
 #endif
                 }
-                Console.WriteLine();
+                MessageReceived(new Record { EndPoint = socket.RemoteEndPoint, Message = message.ToString() });
             }
         }
 
@@ -233,22 +256,31 @@ namespace TcpSocketLib
                 _connections.TryRemove(connection.Key, out var socketClient);
                 if (socketClient.Connected)
                 {
+                    var endPoint = socketClient.RemoteEndPoint;                 
                     socketClient.Shutdown(SocketShutdown.Both);
                     socketClient.Close();
+                    SocketDisposed(endPoint);
                 }
             }
         }
 
         void IService.Stop()
         {
-            ClientDispose();          
-            _cancellation.Token.Register(() =>
+            ClientDispose();
+            if (_listenerSocket.Connected)
             {
                 _listenerSocket.Shutdown(SocketShutdown.Both);
                 _listenerSocket.Close();
                 _accept = false;
-                Console.WriteLine($"{this._serverEndPoint.Address} Server stooped. unmount port {this._serverEndPoint.Port}");
-            });   
+            }
+            Disconnected();
+            //_cancellation.Token.Register(() =>
+            //{
+            //    _listenerSocket.Shutdown(SocketShutdown.Both);
+            //    _listenerSocket.Close();
+            //    _accept = false;            
+            //    //Console.WriteLine($"{this._serverEndPoint.Address} Server stooped. unmount port {this._serverEndPoint.Port}");
+            //});   
         }
     }
 
