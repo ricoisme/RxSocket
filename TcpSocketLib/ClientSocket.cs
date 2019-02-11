@@ -49,8 +49,7 @@ namespace TcpSocketLib
         void IClientSocket.Disconnect()
         {
             var localEndPoint = _clientSocket.LocalEndPoint;
-            _clientSocket.Shutdown(SocketShutdown.Both);
-            _clientSocket.Disconnect(false);         
+            _clientSocket.Shutdown(SocketShutdown.Both);      
             _clientSocket.Close();
             _clientSocket = null;
             ShowDisconnected(localEndPoint);
