@@ -5,10 +5,11 @@ using System.Text;
 
 namespace TcpSocketLib
 {
-    public sealed class Record
+    [Serializable]
+    public sealed class Record<T>
     {
-        public EndPoint EndPoint { get; set; }
-        public string Message { get; set; }
+        public EndPoint EndPoint { get; set; }    
+        public T Message { get; set; }
         public string Error { get; set; }
     }
 }

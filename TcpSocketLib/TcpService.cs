@@ -21,11 +21,11 @@ namespace TcpSocketLib
     {
         event Action Connected;
         event Action Disconnected;
-        IObservable<Record> RecievedMessages { get;}
-        IObservable<Record> SendMessages { get; }
+        IObservable<Record<object>> Reciever { get;}
+        IObservable<Record<object>> Sender{ get; }
         void Start();
         void Stop();
-        Task SendAsync<T>(T message, Action<Record> errorMessageCallback = null);
+        Task SendAsync<T>(T message, Action<Record<T>> errorMessageCallback = null);
         IPEndPoint ServerEndPoint { get; }
     }
 
@@ -37,7 +37,7 @@ namespace TcpSocketLib
         private readonly Socket _listenerSocket;
         private readonly int _backlog;
         private readonly int _bufferSize;
-        private ISubject<Record> _sender = new Subject<Record>();
+        private ISubject<Record<object>> _sender = new Subject<Record<object>>();
         private readonly IPEndPoint _serverEndPoint;
 
         public TcpService(IOptions<ServerConfig> serverConfig)
@@ -67,7 +67,7 @@ namespace TcpSocketLib
             {
                 throw;
             }           
-        }
+        }        
 
         private static Action ShowTotalConnections = () =>
         {
@@ -82,16 +82,16 @@ namespace TcpSocketLib
         public event Action Connected = () => { };
         public event Action Disconnected = () => { };
 
-        private static event Action<Record> MessageReceived = _ => { };
+        private static event Action<Record<object>> MessageReceived = _ => { };
 
         public IPEndPoint ServerEndPoint => this._serverEndPoint;
 
-        public IObservable<Record> RecievedMessages => Observable.FromEvent<Record>
+        public IObservable<Record<object>> Reciever => Observable.FromEvent<Record<object>>
             (a => MessageReceived += a,
             a => MessageReceived -= a);
 
-        public IObservable<Record> SendMessages => this._sender;
-
+        public IObservable<Record<object>> Sender => this._sender;
+       
         void IService.Start()
         {
             _listenerSocket.Listen(_backlog);
@@ -226,7 +226,10 @@ namespace TcpSocketLib
                     message.Append(Encoding.UTF8.GetString(segment));
 #endif
                 }
-                MessageReceived(new Record { EndPoint = socket.RemoteEndPoint, Message = message.ToString(), Error=string.Empty });
+                MessageReceived(new Record<object> {
+                    EndPoint = socket.RemoteEndPoint,
+                    Message = message.ToString().Trim('"'),//due to JsonConvert.SerializeObject
+                    Error = string.Empty });
             }
         }
 
@@ -308,7 +311,7 @@ namespace TcpSocketLib
             //});   
         }
 
-        Task IService.SendAsync<T>(T message, Action<Record> errorMessageCallback)
+        Task IService.SendAsync<T>(T message, Action<Record<T>> errorMessageCallback)
         {
             var buffer = Utility.ObjectToByteArray(message);
             return Observable.Start(() =>
@@ -316,17 +319,18 @@ namespace TcpSocketLib
             ) //.SelectMany(_ => message)
              .Do(x => this._sender.OnNext
              (
-                 new Record {
-                     Message = message as string,
+                 new Record<object>
+                 {
+                     Message = message,
                      EndPoint = _listenerSocket.LocalEndPoint,
                      Error = "" }
                  ),
                  ex =>
                  errorMessageCallback?.Invoke(
-                 new Record
+                 new Record<T>
                  {
                      EndPoint = _listenerSocket.RemoteEndPoint,
-                     Message = message as string,
+                     Message = message,
                      Error = $"error:{ex.Message} , {ex.StackTrace}"
                  }) //disconect
               ).ToTask(_cancellation.Token);

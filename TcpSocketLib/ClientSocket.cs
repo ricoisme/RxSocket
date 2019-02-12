@@ -11,7 +11,7 @@ namespace TcpSocketLib
         void Connect(string IP,int Port);
         void Disconnect();
         bool IsConnected { get; }
-        Task SendAsync<T>(T message, Action<Record> errorMessageCallback = null);
+        Task SendAsync<T>(T message, Action<Record<T>> errorMessageCallback = null);
     }
 
     public sealed class ClientSocket: IClientSocket
@@ -60,17 +60,17 @@ namespace TcpSocketLib
             ShowDisconnected(localEndPoint);
         }
 
-        Task IClientSocket.SendAsync<T>(T message, Action<Record> errorMessageCallback)
+        Task IClientSocket.SendAsync<T>(T message, Action<Record<T>> errorMessageCallback)
         {
             var buffer = Utility.ObjectToByteArray<T>(message);
             return _clientSocket.SendAsync(new ArraySegment<byte>(buffer), SocketFlags.None)
                 .ContinueWith(t =>
                 {
                     errorMessageCallback?.Invoke(
-                      new Record
+                      new Record<T>
                       {
                           EndPoint = _clientSocket.RemoteEndPoint,
-                          Message = message as string,
+                          Message = message,
                           Error = $"error:{t.Exception.Message} , {t.Exception.StackTrace}"
                       }
                       );

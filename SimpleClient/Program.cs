@@ -64,13 +64,17 @@ namespace SimpleClient
             }
         }
 
-        private static void ErrorMessageCallback(Record record)
+        private static void ErrorMessageCallback<T>(Record<T> record)
         {
             Console.WriteLine($"{record.Message} Sent to {record.EndPoint} with Error. {record.Error}");
+#if DEBUG
+
             if(record.Error.Length>0)
             {
                 _client.Disconnect();
+                Environment.Exit(0);
             }
+#endif
         }
     }
 }

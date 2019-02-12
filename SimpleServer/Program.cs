@@ -20,13 +20,13 @@ namespace SimpleServer
             //AppDomain.CurrentDomain.ProcessExit += CurrentDomain_ProcessExit;
             tcpServer.Connected += TcpServer_Connected;
             tcpServer.Disconnected += TcpServer_Disconnected;
-            tcpServer.RecievedMessages.SubscribeOn(TaskPoolScheduler.Default)
+            tcpServer.Reciever.SubscribeOn(TaskPoolScheduler.Default)
                 .Subscribe(
                 r => Console.WriteLine($"Receive:{r.Message} from [{r.EndPoint}]"),
                 ex=> Console.WriteLine(ex),
                 () => Console.WriteLine("Socket receiver completed")
                 );
-            tcpServer.SendMessages.SubscribeOn(TaskPoolScheduler.Default)
+            tcpServer.Sender.SubscribeOn(TaskPoolScheduler.Default)
                 .Subscribe(
                 r=> Console.WriteLine($"Self Sending Message:{r.Message}"),
                  ex => Console.WriteLine(ex),
