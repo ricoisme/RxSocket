@@ -1,7 +1,7 @@
 # TcpSocketLib
 The TcpSocketLib use io.pipelines with RX to handle socket connection and networkstream.
 
-it draw inspiration from davidfowl's project.
+it draw inspiration from [davidfowl's project](https://github.com/davidfowl/TcpEcho).
 
 IService interface providing socket both client and server APIs. 
 
