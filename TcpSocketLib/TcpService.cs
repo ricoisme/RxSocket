@@ -1,4 +1,5 @@
 ﻿using Microsoft.Extensions.Options;
+using Newtonsoft.Json;
 using System;
 using System.Buffers;
 using System.Collections.Concurrent;
@@ -7,8 +8,11 @@ using System.IO.Pipelines;
 using System.Net;
 using System.Net.Sockets;
 using System.Reactive.Linq;
+using System.Reactive.Subjects;
+using System.Reactive.Threading.Tasks;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace TcpSocketLib
@@ -17,9 +21,11 @@ namespace TcpSocketLib
     {
         event Action Connected;
         event Action Disconnected;
-        IObservable<Record> Messages { get;}
+        IObservable<Record> RecievedMessages { get;}
+        IObservable<Record> SendMessages { get; }
         void Start();
         void Stop();
+        Task SendAsync<T>(T message, Action<Record> errorMessageCallback = null);
         IPEndPoint ServerEndPoint { get; }
     }
 
@@ -27,10 +33,11 @@ namespace TcpSocketLib
     {
         private static bool _accept { get; set; }
         private static ConcurrentDictionary<int, Socket> _connections = new ConcurrentDictionary<int, Socket>();
-        //private CancellationTokenSource _cancellation = new CancellationTokenSource();
+        private CancellationTokenSource _cancellation = new CancellationTokenSource();
         private readonly Socket _listenerSocket;
         private readonly int _backlog;
         private readonly int _bufferSize;
+        private ISubject<Record> _sender = new Subject<Record>();
         private readonly IPEndPoint _serverEndPoint;
 
         public TcpService(IOptions<ServerConfig> serverConfig)
@@ -47,9 +54,19 @@ namespace TcpSocketLib
             _serverEndPoint = new IPEndPoint(address, port);
             //_listenerTcp = new TcpListener(address, Port);
             _backlog = backlog;
-            _bufferSize = bufferSize;
-            _listenerSocket = new Socket(SocketType.Stream, ProtocolType.Tcp);
-            _listenerSocket.Bind(_serverEndPoint);
+            _bufferSize = bufferSize;            
+            _listenerSocket = new Socket(
+                AddressFamily.InterNetwork,
+                SocketType.Stream, 
+                ProtocolType.Tcp);
+            try
+            {
+                _listenerSocket.Bind(_serverEndPoint);
+            }
+            catch
+            {
+                throw;
+            }           
         }
 
         private static Action ShowTotalConnections = () =>
@@ -69,16 +86,22 @@ namespace TcpSocketLib
 
         public IPEndPoint ServerEndPoint => this._serverEndPoint;
 
-        public IObservable<Record> Messages => Observable.FromEvent<Record>
+        public IObservable<Record> RecievedMessages => Observable.FromEvent<Record>
             (a => MessageReceived += a,
             a => MessageReceived -= a);
-     
+
+        public IObservable<Record> SendMessages => this._sender;
 
         void IService.Start()
         {
             _listenerSocket.Listen(_backlog);
             _accept = true;         
             Connected();
+#if DEBUG
+            (this as IService).SendAsync("Debug Mode---Tcp server started");
+            (this as IService).SendAsync("Debug Mode---Send message again...");
+#endif
+
             Listen().GetAwaiter().GetResult();
         }
 
@@ -106,9 +129,10 @@ namespace TcpSocketLib
             Task reading = ReadPipeAsync(socket, pipe.Reader);
 
             await Task.WhenAll(reading, writing).ConfigureAwait(false);
-
-            _connections.TryRemove(socket.GetHashCode(), out var socketClient);
+          
             Console.WriteLine($"[{socket.RemoteEndPoint}]: disconnected");
+            _connections.TryRemove(socket.GetHashCode(), out var socketClient);
+            ShowTotalConnections();
         }
 
         private static async Task FillPipeAsync(Socket socket, PipeWriter writer,
@@ -186,7 +210,7 @@ namespace TcpSocketLib
                 }
             }
 
-            reader.Complete();
+            reader.Complete();            
         }
 
         private static void ProcessLine(Socket socket, in ReadOnlySequence<byte> buffer)
@@ -282,6 +306,47 @@ namespace TcpSocketLib
             //    _accept = false;            
             //    //Console.WriteLine($"{this._serverEndPoint.Address} Server stooped. unmount port {this._serverEndPoint.Port}");
             //});   
+        }
+
+        Task IService.SendAsync<T>(T message, Action<Record> errorMessageCallback)
+        {
+            var buffer = Utility.ObjectToByteArray(message);
+            return Observable.Start(() =>
+                _listenerSocket.SendAsync(new ArraySegment<byte>(buffer), SocketFlags.None)
+            ) //.SelectMany(_ => message)
+             .Do(x => this._sender.OnNext
+             (
+                 new Record {
+                     Message = message as string,
+                     EndPoint = _listenerSocket.LocalEndPoint,
+                     Error = "" }
+                 ),
+                 ex =>
+                 errorMessageCallback?.Invoke(
+                 new Record
+                 {
+                     EndPoint = _listenerSocket.RemoteEndPoint,
+                     Message = message as string,
+                     Error = $"error:{ex.Message} , {ex.StackTrace}"
+                 }) //disconect
+              ).ToTask(_cancellation.Token);
+        }
+    }
+
+    internal static class Utility
+    {
+        internal static byte[] Convert(string message)
+        {
+            return Encoding.UTF8.GetBytes(message + '\n');//need \n to be endOfLine
+            //var header = BitConverter.GetBytes(body.Length);
+            //return header.Concat(body).ToArray();
+        }
+
+        internal static byte[] ObjectToByteArray<T>(T obj)
+        {
+            if (obj == null)
+                return null;
+            return Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(obj) + '\n');
         }
     }
 

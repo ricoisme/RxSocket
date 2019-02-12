@@ -3,17 +3,18 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using System;
 using System.IO;
+using System.Reactive.Concurrency;
+using System.Reactive.Linq;
 using TcpSocketLib;
 
 namespace SimpleClient
 {
     class Program
-    {        
+    {
+        static IClientSocket _client;
         static void Main(string[] args)
         {
-            CreateHostBuild();
-           
-            Console.ReadLine();
+            CreateHostBuild();   
         }
 
         private static void CreateHostBuild()
@@ -36,9 +37,9 @@ namespace SimpleClient
 
         private static void CreateClientSocket(ServiceProvider serviceProvider)
         {
-            var client = serviceProvider.GetRequiredService<IClientSocket>();
+            _client = serviceProvider.GetRequiredService<IClientSocket>();
             var serverConfig = serviceProvider.GetRequiredService<IOptions<ServerConfig>>()?.Value;
-            client.Connect(serverConfig.IpAddress, serverConfig.Port);
+            _client.Connect(serverConfig.IpAddress, serverConfig.Port);
 
             string line = null;
             while ((line = Console.ReadLine()) != "")
@@ -46,19 +47,19 @@ namespace SimpleClient
                 if (line == "r")
                 {
                     Console.WriteLine("Reconnecting...");
-                    client.Disconnect();
-                    client.Connect(serverConfig.IpAddress, serverConfig.Port);
-                    Console.WriteLine($"IsConnected = {client.IsConnected}");
+                    _client.Disconnect();
+                    _client.Connect(serverConfig.IpAddress, serverConfig.Port);
+                    Console.WriteLine($"IsConnected = {_client.IsConnected}");
                 }
                 else if (line == "exit")
                 {
-                    client.Disconnect();                  
+                    _client.Disconnect();                  
                     break;
                 }
                 else
                 {
                     Console.WriteLine($"{line}  Sending..");
-                    client.SendAsync(line, ErrorMessageCallback).ConfigureAwait(false);
+                    _client.SendAsync(line, ErrorMessageCallback).ConfigureAwait(false);
                 }
             }
         }
@@ -66,6 +67,10 @@ namespace SimpleClient
         private static void ErrorMessageCallback(Record record)
         {
             Console.WriteLine($"{record.Message} Sent to {record.EndPoint} with Error. {record.Error}");
+            if(record.Error.Length>0)
+            {
+                _client.Disconnect();
+            }
         }
     }
 }
