@@ -68,17 +68,6 @@ namespace SimpleServer
             tcpServer = serviceProvider.GetRequiredService<IService>();
         }
 
-        //private static void CurrentDomain_ProcessExit(object sender, EventArgs e)
-        //{
-        //    const string dotName = "dotnet";
-        //    tcpServer?.Stop();
-        //    // https://github.com/dotnet/corefx/pull/31827   
-        //    // https://github.com/dotnet/cli/issues/7426
-        //    var processes = Process.GetProcessesByName(dotName);
-        //    processes?.Where(p => p.Id > 0 && !p.HasExited && p.MainWindowTitle.Contains(dotName, StringComparison.CurrentCultureIgnoreCase))
-        //        .FirstOrDefault()?.Kill();
-        //}
-
         private static void Console_CancelKeyPress(object sender, ConsoleCancelEventArgs args)
         {
             tcpServer.Connected -= TcpServer_Connected;
