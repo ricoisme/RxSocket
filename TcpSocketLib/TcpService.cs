@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
 using System;
 using System.Buffers;
@@ -50,7 +50,7 @@ namespace TcpSocketLib
 
         public TcpService(string IP, int port, int backlog, int bufferSize)
         {
-            IPAddress address = IPAddress.Parse(IP);
+            var address = IPAddress.Parse(IP);
             _serverEndPoint = new IPEndPoint(address, port);
             //_listenerTcp = new TcpListener(address, Port);
             _backlog = backlog;
@@ -125,8 +125,8 @@ namespace TcpSocketLib
             ShowTotalConnections();
 
             var pipe = new Pipe();
-            Task writing = FillPipeAsync(socket, pipe.Writer, bufferSize);
-            Task reading = ReadPipeAsync(socket, pipe.Reader);
+            var writing = FillPipeAsync(socket, pipe.Writer, bufferSize);
+            var reading = ReadPipeAsync(socket, pipe.Reader);
 
             await Task.WhenAll(reading, writing).ConfigureAwait(false);
           
@@ -143,7 +143,7 @@ namespace TcpSocketLib
                 try
                 {
                     // Request a minimum of 1024 bytes from the PipeWriter
-                    Memory<byte> memory = writer.GetMemory(minimumBufferSize);
+                    var memory = writer.GetMemory(minimumBufferSize);
 
                     int bytesRead = await socket.ReceiveAsync(memory, SocketFlags.None).ConfigureAwait(false);
                     if (bytesRead == 0)
@@ -160,7 +160,7 @@ namespace TcpSocketLib
                 }
 
                 // Make the data available to the PipeReader
-                FlushResult result = await writer.FlushAsync().ConfigureAwait(false);
+                var result = await writer.FlushAsync().ConfigureAwait(false);
 
                 if (result.IsCompleted)
                 {
@@ -176,9 +176,9 @@ namespace TcpSocketLib
         {
             while (true)
             {
-                ReadResult result = await reader.ReadAsync().ConfigureAwait(false);
+                var result = await reader.ReadAsync().ConfigureAwait(false);
 
-                ReadOnlySequence<byte> buffer = result.Buffer;
+                var buffer = result.Buffer;
                 SequencePosition? position = null;
 
                 do
@@ -279,7 +279,7 @@ namespace TcpSocketLib
 
         private void ClientDispose()
         {
-            foreach (KeyValuePair<int, Socket> connection in _connections)
+            foreach (var connection in _connections)
             {
                 _connections.TryRemove(connection.Key, out var socketClient);
                 if (socketClient.Connected)
@@ -349,7 +349,9 @@ namespace TcpSocketLib
         internal static byte[] ObjectToByteArray<T>(T obj)
         {
             if (obj == null)
+            {
                 return null;
+            }              
             return Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(obj) + '\n');
         }
     }
