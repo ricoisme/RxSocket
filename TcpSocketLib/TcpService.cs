@@ -3,7 +3,6 @@ using Newtonsoft.Json;
 using System;
 using System.Buffers;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.IO.Pipelines;
 using System.Net;
 using System.Net.Sockets;
@@ -34,10 +33,11 @@ namespace TcpSocketLib
         private static bool _accept { get; set; }
         private static ConcurrentDictionary<int, Socket> _connections = new ConcurrentDictionary<int, Socket>();
         private CancellationTokenSource _cancellation = new CancellationTokenSource();
+        private ISubject<Record<object>> _sender = new Subject<Record<object>>();
         private readonly Socket _listenerSocket;
         private readonly int _backlog;
-        private readonly int _bufferSize;
-        private ISubject<Record<object>> _sender = new Subject<Record<object>>();
+        private readonly int _bufferSize;      
+        private readonly int _retryMax;
         private readonly IPEndPoint _serverEndPoint;
 
         public TcpService(IOptions<ServerConfig> serverConfig)
@@ -46,13 +46,13 @@ namespace TcpSocketLib
                  serverConfig.Value.Backlog,
                  serverConfig.Value.BufferSize)
         {
+            _retryMax = serverConfig.Value.Retry;
         }
 
         public TcpService(string IP, int port, int backlog, int bufferSize)
         {
             var address = IPAddress.Parse(IP);
-            _serverEndPoint = new IPEndPoint(address, port);
-            //_listenerTcp = new TcpListener(address, Port);
+            _serverEndPoint = new IPEndPoint(address, port);          
             _backlog = backlog;
             _bufferSize = bufferSize;            
             _listenerSocket = new Socket(
@@ -65,7 +65,13 @@ namespace TcpSocketLib
             }
             catch
             {
-                throw;
+               var result= Utility.Retry(_retryMax,
+                    ()=>Task.Factory.StartNew(() => _listenerSocket.Bind(_serverEndPoint))
+                );
+                if(!result)
+                {
+                    throw;
+                }
             }           
         }        
 
@@ -75,9 +81,9 @@ namespace TcpSocketLib
         };
 
         private Action<EndPoint> SocketDisposed = (ep) =>
-          {             
+        {             
               Console.WriteLine($"[{ep}]: client socket disposed.");
-          };
+        };
 
         public event Action Connected = () => { };
         public event Action Disconnected = () => { };
@@ -98,10 +104,9 @@ namespace TcpSocketLib
             _accept = true;         
             Connected();
 #if DEBUG
-            (this as IService).SendAsync("Debug Mode---Tcp server started");
-            (this as IService).SendAsync("Debug Mode---Send message again...");
+            (this as IService).SendAsync("Debug Mode: send message");
+            (this as IService).SendAsync("Debug Mode: send message again");
 #endif
-
             Listen().GetAwaiter().GetResult();
         }
 
@@ -233,6 +238,8 @@ namespace TcpSocketLib
             }
         }
 
+        #region legacy code
+
         //private async void listenTcp()
         //{
         //    var clientTask = _listenerSocket.AcceptTcpClientAsync(); // Get the client           
@@ -277,6 +284,8 @@ namespace TcpSocketLib
         //    }
         //}
 
+        #endregion
+
         private void ClientDispose()
         {
             foreach (var connection in _connections)
@@ -314,6 +323,52 @@ namespace TcpSocketLib
         Task IService.SendAsync<T>(T message, Action<Record<T>> errorMessageCallback)
         {
             var buffer = Utility.ObjectToByteArray(message);
+            var localEndPoint = _listenerSocket.LocalEndPoint;
+            bool ReConnect()
+            {
+                return Utility.Retry(_retryMax,
+                    () => _listenerSocket.ConnectAsync(localEndPoint));
+            }
+
+            bool ReSend()
+            {
+                return Utility.Retry(_retryMax, () => _listenerSocket.SendAsync(new ArraySegment<byte>(buffer), SocketFlags.None));
+            }
+
+            void callbackInvoke(string errorMessage)
+            {
+                errorMessageCallback?.Invoke(
+                     new Record<T>
+                     {
+                         EndPoint = localEndPoint,
+                         Message = message,
+                         Error = $"error:{errorMessage}"
+                     });
+            }
+
+            if (!Utility.IsConnect(_listenerSocket))
+            {               
+                var result = ReConnect();
+                var errorMessage = $"[{localEndPoint}] Disconnected.";
+                if (!result)
+                {                
+                    callbackInvoke(errorMessage);
+                    Disconnected();
+                }
+                return Observable.Start(() => Task.FromResult(result))
+                    .Do(x => this._sender.OnNext
+                    (
+                     new Record<object>
+                     {
+                         Message = message,
+                         EndPoint = localEndPoint,
+                         Error = errorMessage
+                     }
+                    ),
+                    ex => { callbackInvoke($"{ex.Message}, {ex.StackTrace}"); }                   
+                ).ToTask(_cancellation.Token);
+            }
+
             return Observable.Start(() =>
                 _listenerSocket.SendAsync(new ArraySegment<byte>(buffer), SocketFlags.None)
             ) //.SelectMany(_ => message)
@@ -322,22 +377,23 @@ namespace TcpSocketLib
                  new Record<object>
                  {
                      Message = message,
-                     EndPoint = _listenerSocket.LocalEndPoint,
+                     EndPoint = localEndPoint,
                      Error = "" }
                  ),
                  ex =>
-                 errorMessageCallback?.Invoke(
-                 new Record<T>
                  {
-                     EndPoint = _listenerSocket.RemoteEndPoint,
-                     Message = message,
-                     Error = $"error:{ex.Message} , {ex.StackTrace}"
-                 }) //disconect
+                     var result = ReSend();
+                     if (!result)
+                     {
+                         var errorMessage = $"{ex.Message}, {ex.StackTrace}";
+                         callbackInvoke(errorMessage);
+                     }
+                 }               
               ).ToTask(_cancellation.Token);
         }
     }
 
-    internal static class Utility
+    public static class Utility
     {
         internal static byte[] Convert(string message)
         {
@@ -353,6 +409,42 @@ namespace TcpSocketLib
                 return null;
             }              
             return Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(obj) + '\n');
+        }
+
+        public static bool IsConnect(Socket client)
+        {
+            var pollResult = client.Poll(250, SelectMode.SelectRead);
+            var availableResult = (client.Available == 0);
+            if (pollResult && availableResult)
+            {
+                return false;
+            }              
+            else
+            {
+                return true;
+            }
+        }
+
+        public static bool Retry(int maxLoop, Func<Task> action)
+        {          
+            for(int i=0;i< maxLoop;i++)
+            {
+                Thread.Sleep(100);
+                try
+                {
+                   action?.Invoke().Wait();                    
+                   return true;
+                }
+                catch
+                {                   
+                    if(i<maxLoop)
+                    {
+                        continue;
+                    }
+                    break;                 
+                }               
+            }
+            return false;
         }
     }
 

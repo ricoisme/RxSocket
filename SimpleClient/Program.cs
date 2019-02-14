@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using System;
@@ -58,8 +58,8 @@ namespace SimpleClient
                 }
                 else
                 {
-                    Console.WriteLine($"{line}  Sending..");
-                    _client.SendAsync(line, ErrorMessageCallback).ConfigureAwait(false);
+                    Console.WriteLine($"{line}  Sending..");               
+                    _client.SendAsync(line,3, ErrorMessageCallback).ConfigureAwait(false);
                 }
             }
         }

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -11,7 +11,7 @@ namespace TcpSocketLib
         void Connect(string IP,int Port);
         void Disconnect();
         bool IsConnected { get; }
-        Task SendAsync<T>(T message, Action<Record<T>> errorMessageCallback = null);
+        Task SendAsync<T>(T message,int retryMax, Action<Record<T>> errorMessageCallback = null);
     }
 
     public sealed class ClientSocket: IClientSocket
@@ -30,9 +30,9 @@ namespace TcpSocketLib
         };
 
         private Action<EndPoint> ShowDisconnected = (localEndPoint) =>
-          {
+        {
               Console.WriteLine($"[{localEndPoint}] Disconnected.");
-          };
+        };
 
         bool IClientSocket.IsConnected => _clientSocket.Connected;       
 
@@ -60,20 +60,53 @@ namespace TcpSocketLib
             ShowDisconnected(localEndPoint);
         }
 
-        Task IClientSocket.SendAsync<T>(T message, Action<Record<T>> errorMessageCallback)
+        Task IClientSocket.SendAsync<T>(T message, int retryMax, Action<Record<T>> errorMessageCallback)
         {
             var buffer = Utility.ObjectToByteArray<T>(message);
+            var remoteEndpoint = _clientSocket.RemoteEndPoint;
+            bool ReConnect()
+            {
+                return Utility.Retry(retryMax,
+                    () => _clientSocket.ConnectAsync(remoteEndpoint));
+            }
+
+            bool ReSend()
+            {
+                return Utility.Retry(retryMax, () => _clientSocket.SendAsync(new ArraySegment<byte>(buffer), SocketFlags.None));
+            }
+
+            void callbackInvoke(string errorMessage)
+            {
+                errorMessageCallback?.Invoke(
+                     new Record<T>
+                     {
+                         EndPoint = remoteEndpoint,
+                         Message = message,
+                         Error = $"error:{errorMessage}"
+                     });
+            }
+
+            if (!Utility.IsConnect(_clientSocket))
+            {
+                var localEndPoint = _clientSocket.LocalEndPoint;
+                var result = ReConnect();
+                if (!result)
+                {
+                    var errorMessage = $"[{localEndPoint}] Disconnected.";
+                    callbackInvoke(errorMessage);                
+                    ShowDisconnected(localEndPoint);
+                }
+                return Task.FromResult(result);
+            }   
             return _clientSocket.SendAsync(new ArraySegment<byte>(buffer), SocketFlags.None)
                 .ContinueWith(t =>
                 {
-                    errorMessageCallback?.Invoke(
-                      new Record<T>
-                      {
-                          EndPoint = _clientSocket.RemoteEndPoint,
-                          Message = message,
-                          Error = $"error:{t.Exception.Message} , {t.Exception.StackTrace}"
-                      }
-                      );
+                    var result = ReSend();
+                    if (!result)
+                    {
+                        var errorMessage = $"{t.Exception.Message}, {t.Exception.StackTrace}";
+                        callbackInvoke(errorMessage);
+                    }
                 }, TaskContinuationOptions.OnlyOnFaulted);
                 //.ContinueWith(t=> t.GetAwaiter().GetResult(), TaskContinuationOptions.OnlyOnRanToCompletion);
         }
