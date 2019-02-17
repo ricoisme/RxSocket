@@ -21,7 +21,7 @@ namespace TckSocketLib.Benchmarks
         private readonly IClientSocket _client;
         private readonly IService _tcpService;
 
-        [Params(100,1000)]
+        [Params(100,1000,10000)]
         public int Totals { get; set; }
 
         [Params(1024, 4096, 8192)]
