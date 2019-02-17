@@ -49,6 +49,15 @@ namespace TcpSocketLib
             _retryMax = serverConfig.Value.Retry;
         }
 
+        public TcpService(ServerConfig serverConfig)
+            :this(serverConfig.IpAddress,
+                 serverConfig.Port,
+                 serverConfig.Backlog,
+                 serverConfig.BufferSize)
+        {
+            _retryMax = serverConfig.Retry;
+        }
+
         public TcpService(string IP, int port, int backlog, int bufferSize)
         {
             var address = IPAddress.Parse(IP);
