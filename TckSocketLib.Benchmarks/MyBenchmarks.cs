@@ -37,7 +37,7 @@ namespace TckSocketLib.Benchmarks
                 Retry=3
             };
             _tcpService = new TcpService(_config);
-            _client = new ClientSocket();         
+            _client = new ClientSocket();
         }
 
         [GlobalSetup]

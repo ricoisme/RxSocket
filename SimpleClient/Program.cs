@@ -2,44 +2,97 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using System;
+using System.ComponentModel;
 using System.IO;
 using System.Reactive.Concurrency;
 using System.Reactive.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using TcpSocketLib;
 
 namespace SimpleClient
 {
     class Program
     {
+        private static System.Timers.Timer _timers = new System.Timers.Timer();
+        private static bool _needReConnecting { get; set; }
         static IClientSocket _client;
+        private static IConfigurationRoot _configuration { get; set; }
+        private static ServiceProvider _serviceProvider { get; set; }
+        private static ServerConfig _serverConfig { get; set; }
         static void Main(string[] args)
         {
-            CreateHostBuild();   
+            _timers.Interval = 10 * 1000;
+            _timers.Elapsed += _timers_Elapsed;
+            _timers.AutoReset = true;
+            _needReConnecting = false;
+            CreateHostBuild();
+        }
+
+        private static void _timers_Elapsed(object sender, System.Timers.ElapsedEventArgs e)
+        {
+            if (!_needReConnecting)
+            {
+                Console.WriteLine("dont need to connect againg.");
+                return;
+            }
+            _needReConnecting = false;
+            Console.WriteLine($"{Thread.CurrentThread.ManagedThreadId}:ThreadState:{Thread.CurrentThread.ThreadState}, Reconnecting to Server.");
+            if (_client == null)
+            {
+                _client = _serviceProvider.GetRequiredService<IClientSocket>();
+            }
+            if (!_client.IsConnected)
+            {
+                Task.Run(() => _client.Connect(_serverConfig.IpAddress, _serverConfig.Port))
+                      .ContinueWith(tresult =>
+                      {
+                          if (tresult.Status == TaskStatus.Faulted)
+                          {
+                              _needReConnecting = true;
+                              Console.WriteLine($"{Task.CurrentId} status changed to {_needReConnecting}.");
+                          }
+                          else
+                          {
+                              Console.WriteLine("Successfully connected to the Server.");
+                          }
+                      });
+            }
         }
 
         private static void CreateHostBuild()
         {
             const string configName = "appsettings.json";
             var basePath = Directory.GetCurrentDirectory();
-            if(!File.Exists(Path.Combine(basePath,configName)))
+            if (!File.Exists(Path.Combine(basePath, configName)))
             {
-                throw new ArgumentNullException($"{Path.Combine(basePath,configName)} does not exists");
+                throw new ArgumentNullException($"{Path.Combine(basePath, configName)} does not exists");
             }
             var configuration = new ConfigurationBuilder()
                 .SetBasePath(basePath)
                 .AddJsonFile(configName, optional: false, reloadOnChange: true)
                 .Build();
-            var serviceProvider = new ServiceCollection()
+            _configuration = configuration;
+            _serviceProvider = new ServiceCollection()
                 .SetupTcpService(configuration.GetSection("ServerConfig"))
                 .BuildServiceProvider();
-            CreateClientSocket(serviceProvider);
+            CreateClientSocket();
         }
 
-        private static void CreateClientSocket(ServiceProvider serviceProvider)
+        private static void CreateClientSocket()
         {
-            _client = serviceProvider.GetRequiredService<IClientSocket>();
-            var serverConfig = serviceProvider.GetRequiredService<IOptions<ServerConfig>>()?.Value;
-            _client.Connect(serverConfig.IpAddress, serverConfig.Port);
+            _serverConfig = _serviceProvider.GetRequiredService<IOptions<ServerConfig>>()?.Value;
+            _client = _serviceProvider.GetRequiredService<IClientSocket>();
+            _timers.Start();
+            try
+            {
+                _client.Connect(_serverConfig.IpAddress, _serverConfig.Port);
+            }
+            catch
+            {
+                Console.WriteLine($"connect {_serverConfig.IpAddress}:{_serverConfig.Port} faulted");
+                _needReConnecting = true;
+            }
 
             string line = null;
             while ((line = Console.ReadLine()) != "")
@@ -48,18 +101,18 @@ namespace SimpleClient
                 {
                     Console.WriteLine("Reconnecting...");
                     _client.Disconnect();
-                    _client.Connect(serverConfig.IpAddress, serverConfig.Port);
+                    _client.Connect(_serverConfig.IpAddress, _serverConfig.Port);
                     Console.WriteLine($"IsConnected = {_client.IsConnected}");
                 }
                 else if (line == "exit")
                 {
-                    _client.Disconnect();                  
+                    _client.Disconnect();
                     break;
                 }
                 else
                 {
-                    Console.WriteLine($"{line}  Sending..");               
-                    _client.SendAsync(line,3, ErrorMessageCallback).ConfigureAwait(false);
+                    Console.WriteLine($"{line}  Sending..");
+                    _client.SendAsync(line, 3, ErrorMessageCallback).ConfigureAwait(false);
                 }
             }
         }

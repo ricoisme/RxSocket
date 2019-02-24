@@ -193,6 +193,7 @@
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="MyBenchmarks.cs" />
+    <Compile Include="TraditionalSocket.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />
