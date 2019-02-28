@@ -4,6 +4,7 @@ using System;
 using System.Buffers;
 using System.Collections.Concurrent;
 using System.IO.Pipelines;
+using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Reactive.Linq;
@@ -18,27 +19,29 @@ namespace RxSocket
 {
     public interface IService
     {
-        event Action Connected;
-        event Action Disconnected;
-        IObservable<Record<object>> Reciever { get;}
-        IObservable<Record<object>> Sender{ get; }
-        void Start();
+        IObservable<Socket> Accepted { get; }
+        IObservable<EndPoint> Disconnected { get; }
+        IObservable<ErrorData> Error { get; }
+        IObservable<Record<object>> Reciever { get; }
+        IObservable<Record<object>> Sender { get; }
+        Task StartAsync();
         void Stop();
         Task SendAsync<T>(T message, Action<Record<T>> errorMessageCallback = null);
-        IPEndPoint ServerEndPoint { get; }
     }
 
     public sealed class TcpService : IService
     {
-        private static bool _accept { get; set; }
-        private static ConcurrentDictionary<int, Socket> _connections = new ConcurrentDictionary<int, Socket>();
+        private bool _accept { get; set; }
         private CancellationTokenSource _cancellation = new CancellationTokenSource();
-        private ISubject<Record<object>> _sender = new Subject<Record<object>>();
+        private readonly ISubject<Socket> _accepted = new Subject<Socket>();
+        private readonly ISubject<EndPoint> _disconnected = new Subject<EndPoint>();
+        private readonly ISubject<ErrorData> _error = new Subject<ErrorData>();
+        private readonly ISubject<Record<object>> _sender = new Subject<Record<object>>();
+        private readonly ConcurrentDictionary<int, Socket> _connections = new ConcurrentDictionary<int, Socket>();
         private readonly Socket _listenerSocket;
         private readonly int _backlog;
-        private readonly int _bufferSize;      
+        private readonly int _bufferSize;
         private readonly int _retryMax;
-        private readonly IPEndPoint _serverEndPoint;
 
         public TcpService(IOptions<ServerConfig> serverConfig)
             : this(serverConfig.Value.IpAddress,
@@ -50,7 +53,7 @@ namespace RxSocket
         }
 
         public TcpService(ServerConfig serverConfig)
-            :this(serverConfig.IpAddress,
+            : this(serverConfig.IpAddress,
                  serverConfig.Port,
                  serverConfig.Backlog,
                  serverConfig.BufferSize)
@@ -61,97 +64,100 @@ namespace RxSocket
         public TcpService(string IP, int port, int backlog, int bufferSize)
         {
             var address = IPAddress.Parse(IP);
-            _serverEndPoint = new IPEndPoint(address, port);          
             _backlog = backlog;
-            _bufferSize = bufferSize;            
+            _bufferSize = bufferSize;
             _listenerSocket = new Socket(
                 AddressFamily.InterNetwork,
-                SocketType.Stream, 
+                SocketType.Stream,
                 ProtocolType.Tcp);
+            var endPoint = new IPEndPoint(address, port);
             try
             {
-                _listenerSocket.Bind(_serverEndPoint);
+                _listenerSocket.Bind(endPoint);
             }
             catch
             {
-               var result= Utility.Retry(_retryMax,
-                    ()=>Task.Factory.StartNew(() => _listenerSocket.Bind(_serverEndPoint))
-                );
-                if(!result)
+                var result = Utility.Retry(_retryMax,
+                     () => Task.Factory.StartNew(() => _listenerSocket.Bind(endPoint))
+                 );
+                if (!result)
                 {
                     throw;
                 }
-            }           
-        }        
+            }
+        }
 
-        private static Action ShowTotalConnections = () =>
+        private readonly Action<int> ShowTotalConnections = (totals) =>
         {
-            Console.WriteLine($"Waiting for client... {_connections.Count} connected at the moment.");
+            Console.WriteLine($"Waiting for client... {totals} connected at the moment.");
         };
 
-        private Action<EndPoint> SocketDisposed = (ep) =>
-        {             
-              Console.WriteLine($"[{ep}]: client socket disposed.");
+        private readonly Action<EndPoint> SocketDisposed = (ep) =>
+        {
+            Console.WriteLine($"[{ep}]: client socket disposed.");
         };
 
-        public event Action Connected = () => { };
-        public event Action Disconnected = () => { };
+        private event Action<Record<object>> MessageReceived = _ => { };
 
-        private static event Action<Record<object>> MessageReceived = _ => { };
+        public IObservable<Socket> Accepted => _accepted.AsObservable();
 
-        public IPEndPoint ServerEndPoint => this._serverEndPoint;
+        public IObservable<EndPoint> Disconnected => _disconnected.AsObservable();
+
+        public IObservable<ErrorData> Error => _error.AsObservable();
 
         public IObservable<Record<object>> Reciever => Observable.FromEvent<Record<object>>
             (a => MessageReceived += a,
             a => MessageReceived -= a);
 
-        public IObservable<Record<object>> Sender => this._sender;
-       
-        void IService.Start()
+        public IObservable<Record<object>> Sender => _sender.AsObservable();
+
+        async Task IService.StartAsync()
         {
             _listenerSocket.Listen(_backlog);
-            _accept = true;         
-            Connected();
+            _accept = true;
 #if DEBUG
-            (this as IService).SendAsync("Debug Mode: send message");
-            (this as IService).SendAsync("Debug Mode: send message again");
+            await (this as IService).SendAsync("Debug Mode: send message");
+            await (this as IService).SendAsync("Debug Mode: send message again");
 #endif
-            Listen().GetAwaiter().GetResult();
+            await Task.Run(() => Listen());           
+            //Listen().GetAwaiter().GetResult();
         }
 
         private async Task Listen()
         {
             if (_listenerSocket != null && _accept)
             {
+                _accepted.OnNext(_listenerSocket);
                 // Continue listening.               
                 while (true)
                 {
                     var socket = await _listenerSocket.AcceptAsync();
-                    _ = ProcessLinesAsync(socket,_bufferSize);
+                    _ = ProcessLinesAsync(socket, _bufferSize);
                 }
             }
         }
 
-        private static async Task ProcessLinesAsync(Socket socket,int bufferSize)
-        {         
+        private async Task ProcessLinesAsync(Socket socket, int bufferSize)
+        {
             Console.WriteLine($"[{socket.RemoteEndPoint}]: connected");
             _connections.AddOrUpdate(socket.GetHashCode(), socket, (key, oldValue) => socket);
-            ShowTotalConnections();
+            _accepted.OnNext(socket);
+            ShowTotalConnections(_connections.Count);
 
             var pipe = new Pipe();
             var writing = FillPipeAsync(socket, pipe.Writer, bufferSize);
             var reading = ReadPipeAsync(socket, pipe.Reader);
 
             await Task.WhenAll(reading, writing).ConfigureAwait(false);
-          
+
             Console.WriteLine($"[{socket.RemoteEndPoint}]: disconnected");
             _connections.TryRemove(socket.GetHashCode(), out var socketClient);
-            ShowTotalConnections();
+            ShowTotalConnections(_connections.Count);
         }
 
-        private static async Task FillPipeAsync(Socket socket, PipeWriter writer,
+        private async Task FillPipeAsync(Socket socket, PipeWriter writer,
             int minimumBufferSize)
-        {           
+        {
             while (true)
             {
                 try
@@ -186,7 +192,7 @@ namespace RxSocket
             writer.Complete();
         }
 
-        private static async Task ReadPipeAsync(Socket socket, PipeReader reader)
+        private async Task ReadPipeAsync(Socket socket, PipeReader reader)
         {
             while (true)
             {
@@ -217,33 +223,35 @@ namespace RxSocket
                 // We sliced the buffer until no more data could be processed
                 // Tell the PipeReader how much we consumed and how much we left to process
                 reader.AdvanceTo(buffer.Start, buffer.End);
-              
+
                 if (result.IsCompleted)
                 {
                     break;
                 }
             }
 
-            reader.Complete();            
+            reader.Complete();
         }
 
-        private static void ProcessLine(Socket socket, in ReadOnlySequence<byte> buffer)
+        private void ProcessLine(Socket socket, in ReadOnlySequence<byte> buffer)
         {
             if (_accept)
-            {               
+            {
                 var message = new StringBuilder();
                 foreach (var segment in buffer)
                 {
 #if NETSTANDARD2_0
-                    message.Append(Encoding.UTF8.GetString(segment.Span.ToArray())); 
+                    message.Append(Encoding.UTF8.GetString(segment.Span.ToArray()));
 #else
                     message.Append(Encoding.UTF8.GetString(segment));
 #endif
                 }
-                MessageReceived(new Record<object> {
+                MessageReceived(new Record<object>
+                {
                     EndPoint = socket.RemoteEndPoint,
                     Message = message.ToString().Trim('"'),//due to JsonConvert.SerializeObject
-                    Error = string.Empty });
+                    Error = string.Empty
+                });
             }
         }
 
@@ -297,36 +305,32 @@ namespace RxSocket
 
         private void ClientDispose()
         {
-            foreach (var connection in _connections)
+            _connections.ToList().ForEach(kv =>
             {
-                _connections.TryRemove(connection.Key, out var socketClient);
-                if (socketClient.Connected)
+                var socketClient = kv.Value;
+                if (socketClient?.Connected == true)
                 {
-                    var endPoint = socketClient.RemoteEndPoint;                 
+                    var endPoint = socketClient.RemoteEndPoint;
                     socketClient.Shutdown(SocketShutdown.Both);
                     socketClient.Close();
                     SocketDisposed(endPoint);
                 }
-            }
+            });
+            _connections.Clear();
         }
 
         void IService.Stop()
         {
-            ClientDispose();
-            if (_listenerSocket.Connected)
-            {
+            var localEndPoint = _listenerSocket.LocalEndPoint;
+            if (_listenerSocket?.Connected == true)
+            {             
                 _listenerSocket.Shutdown(SocketShutdown.Both);
                 _listenerSocket.Close();
                 _accept = false;
+          
             }
-            Disconnected();
-            //_cancellation.Token.Register(() =>
-            //{
-            //    _listenerSocket.Shutdown(SocketShutdown.Both);
-            //    _listenerSocket.Close();
-            //    _accept = false;            
-            //    //Console.WriteLine($"{this._serverEndPoint.Address} Server stooped. unmount port {this._serverEndPoint.Port}");
-            //});   
+            ClientDispose();
+            _disconnected.OnNext(localEndPoint);
         }
 
         Task IService.SendAsync<T>(T message, Action<Record<T>> errorMessageCallback)
@@ -356,16 +360,16 @@ namespace RxSocket
             }
 
             if (!Utility.IsConnect(_listenerSocket))
-            {               
+            {
                 var result = ReConnect();
                 var errorMessage = $"[{localEndPoint}] Disconnected.";
                 if (!result)
-                {                
+                {
                     callbackInvoke(errorMessage);
-                    Disconnected();
+                    _disconnected.OnNext(localEndPoint);
                 }
                 return Observable.Start(() => Task.FromResult(result))
-                    .Do(x => this._sender.OnNext
+                    .Do(x => _sender.OnNext
                     (
                      new Record<object>
                      {
@@ -374,20 +378,21 @@ namespace RxSocket
                          Error = errorMessage
                      }
                     ),
-                    ex => { callbackInvoke($"{ex.Message}, {ex.StackTrace}"); }                   
+                    ex => { callbackInvoke($"{ex.Message}, {ex.StackTrace}"); }
                 ).ToTask(_cancellation.Token);
             }
 
             return Observable.Start(() =>
                 _listenerSocket.SendAsync(new ArraySegment<byte>(buffer), SocketFlags.None)
             ) //.SelectMany(_ => message)
-             .Do(x => this._sender.OnNext
+             .Do(x => _sender.OnNext
              (
                  new Record<object>
                  {
                      Message = message,
                      EndPoint = localEndPoint,
-                     Error = "" }
+                     Error = ""
+                 }
                  ),
                  ex =>
                  {
@@ -397,7 +402,7 @@ namespace RxSocket
                          var errorMessage = $"{ex.Message}, {ex.StackTrace}";
                          callbackInvoke(errorMessage);
                      }
-                 }               
+                 }
               ).ToTask(_cancellation.Token);
         }
     }
@@ -416,7 +421,7 @@ namespace RxSocket
             if (obj == null)
             {
                 return null;
-            }              
+            }
             return Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(obj) + '\n');
         }
 
@@ -427,7 +432,7 @@ namespace RxSocket
             if (pollResult && availableResult)
             {
                 return false;
-            }              
+            }
             else
             {
                 return true;
@@ -435,23 +440,23 @@ namespace RxSocket
         }
 
         public static bool Retry(int maxLoop, Func<Task> action)
-        {          
-            for(int i=0;i< maxLoop;i++)
+        {
+            for (int i = 0; i < maxLoop; i++)
             {
                 Thread.Sleep(100);
                 try
                 {
-                   action?.Invoke().Wait();                    
-                   return true;
+                    action?.Invoke().Wait();
+                    return true;
                 }
                 catch
-                {                   
-                    if(i<maxLoop)
+                {
+                    if (i < maxLoop)
                     {
                         continue;
                     }
-                    break;                 
-                }               
+                    break;
+                }
             }
             return false;
         }
