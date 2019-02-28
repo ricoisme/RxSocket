@@ -16,12 +16,12 @@ namespace RxSocket.Benchmarks
     {
         private readonly ServerConfig _config;
         private readonly IClientSocket _client;
-        private readonly IService _tcpService;
+        private readonly ISocketService _tcpService;
 
-        [Params(100)] //,1000,10000
+        [Params(100, 1000, 10000)]
         public int Totals { get; set; }
 
-        [Params(1024)] //, 4096, 8192
+        [Params(1024, 4096, 8192)]
         public int BufferSize { get; set; }
 
         public MyBenchmarks()

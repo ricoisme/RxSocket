@@ -17,7 +17,7 @@ using System.Threading.Tasks;
 
 namespace RxSocket
 {
-    public interface IService
+    public interface ISocketService
     {
         IObservable<Socket> Accepted { get; }
         IObservable<EndPoint> Disconnected { get; }
@@ -29,7 +29,7 @@ namespace RxSocket
         Task SendAsync<T>(T message, Action<Record<T>> errorMessageCallback = null);
     }
 
-    public sealed class TcpService : IService
+    public sealed class TcpService : ISocketService
     {
         private bool _accept { get; set; }
         private CancellationTokenSource _cancellation = new CancellationTokenSource();
@@ -111,16 +111,15 @@ namespace RxSocket
 
         public IObservable<Record<object>> Sender => _sender.AsObservable();
 
-        async Task IService.StartAsync()
+        async Task ISocketService.StartAsync()
         {
             _listenerSocket.Listen(_backlog);
             _accept = true;
 #if DEBUG
-            await (this as IService).SendAsync("Debug Mode: send message");
-            await (this as IService).SendAsync("Debug Mode: send message again");
+            await (this as ISocketService).SendAsync("Debug Mode: send message");
+            await (this as ISocketService).SendAsync("Debug Mode: send message again");
 #endif
-            await Task.Run(() => Listen());           
-            //Listen().GetAwaiter().GetResult();
+            await Task.Run(() => Listen());
         }
 
         private async Task Listen()
@@ -203,7 +202,7 @@ namespace RxSocket
 
                 do
                 {
-                    // Find the EOL
+                    // Find the EOL                    
                     position = buffer.PositionOf((byte)'\n');
 
                     if (position != null)
@@ -319,21 +318,21 @@ namespace RxSocket
             _connections.Clear();
         }
 
-        void IService.Stop()
+        void ISocketService.Stop()
         {
             var localEndPoint = _listenerSocket.LocalEndPoint;
             if (_listenerSocket?.Connected == true)
-            {             
+            {
                 _listenerSocket.Shutdown(SocketShutdown.Both);
                 _listenerSocket.Close();
                 _accept = false;
-          
+
             }
             ClientDispose();
             _disconnected.OnNext(localEndPoint);
         }
 
-        Task IService.SendAsync<T>(T message, Action<Record<T>> errorMessageCallback)
+        Task ISocketService.SendAsync<T>(T message, Action<Record<T>> errorMessageCallback)
         {
             var buffer = Utility.ObjectToByteArray(message);
             var localEndPoint = _listenerSocket.LocalEndPoint;
@@ -384,7 +383,7 @@ namespace RxSocket
 
             return Observable.Start(() =>
                 _listenerSocket.SendAsync(new ArraySegment<byte>(buffer), SocketFlags.None)
-            ) //.SelectMany(_ => message)
+              )
              .Do(x => _sender.OnNext
              (
                  new Record<object>

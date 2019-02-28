@@ -9,7 +9,7 @@ namespace RxSocket
         {
             services.AddOptions();
             services.Configure<ServerConfig>(configuration);
-            services.AddSingleton<IService, TcpService>();
+            services.AddSingleton<ISocketService, TcpService>();
             services.AddScoped<IClientSocket, ClientSocket>();
             return services;
         }

@@ -13,7 +13,7 @@ namespace SimpleServer
 {
     class Program
     {
-        static IService tcpServer;
+        static ISocketService tcpServer;
         static async Task Main(string[] args)
         {
             CreateHostBuild();
@@ -36,7 +36,7 @@ namespace SimpleServer
             tcpServer.Error.SubscribeOn(TaskPoolScheduler.Default)
                 .Subscribe
                 (
-                  r => Console.WriteLine($"Error happend:{r.Method}, {r.Exception.Message},{r.Exception.StackTrace}"),
+                  r => Console.WriteLine($"Error happened:{r.Method}, {r.Exception.Message},{r.Exception.StackTrace}"),
                  ex => Console.WriteLine(ex),
                  () => Console.WriteLine("Server Error completed")
                 );
@@ -75,7 +75,7 @@ namespace SimpleServer
 
         static void GetTcpServer(ServiceProvider serviceProvider)
         {
-            tcpServer = serviceProvider.GetRequiredService<IService>();
+            tcpServer = serviceProvider.GetRequiredService<ISocketService>();
             var serverConfig = serviceProvider.GetRequiredService<IOptions<ServerConfig>>();
 
         }
