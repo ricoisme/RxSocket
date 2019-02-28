@@ -84,7 +84,7 @@ namespace SimpleClient
             _serverConfig = _serviceProvider.GetRequiredService<IOptions<ServerConfig>>()?.Value;
             _client = _serviceProvider.GetRequiredService<IClientSocket>();
             _timers.Start();
-            Task.Run(async () => _client.ConnectAsync(_serverConfig.IpAddress, _serverConfig.Port)
+            Task.Run(async () => await _client.ConnectAsync(_serverConfig.IpAddress, _serverConfig.Port)
             .ConfigureAwait(false))
                 .ContinueWith(tresult =>
                 {
