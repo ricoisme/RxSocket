@@ -1,5 +1,5 @@
-# RxSocket
-The TcpSocketLib use io.pipelines with RX to handle socket connection and networkstream.
+# RxSocket 
+The RxSocket use io.pipelines with RX to handle socket connection and networkstream.
 
 it draw inspiration from [davidfowl's project](https://github.com/davidfowl/TcpEcho).
 
