@@ -44,7 +44,7 @@ namespace RxSocket.Benchmarks
             _tcpService.Accepted.SubscribeOn(TaskPoolScheduler.Default)
                 .Subscribe
                 (
-                 r => _client.Connect(_config.IpAddress, _config.Port),
+                 r => _client.ConnectAsync(_config.IpAddress, _config.Port),
                  ex => Console.WriteLine(ex),
                () => Console.WriteLine("Server Start completed")
                 );

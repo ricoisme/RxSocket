@@ -44,13 +44,13 @@ namespace SimpleClient
             }
             if (!_client.IsConnected)
             {
-                Task.Run(() => _client.Connect(_serverConfig.IpAddress, _serverConfig.Port))
+                Task.Run(async () => await _client.ConnectAsync(_serverConfig.IpAddress, _serverConfig.Port))
                       .ContinueWith(tresult =>
                       {
                           if (tresult.Status == TaskStatus.Faulted)
                           {
                               _needReConnecting = true;
-                              Console.WriteLine($"{Task.CurrentId} status changed to {_needReConnecting}.");
+                              Console.WriteLine($"{Task.CurrentId} status changed to  {_needReConnecting}.");
                           }
                           else
                           {
@@ -84,16 +84,16 @@ namespace SimpleClient
             _serverConfig = _serviceProvider.GetRequiredService<IOptions<ServerConfig>>()?.Value;
             _client = _serviceProvider.GetRequiredService<IClientSocket>();
             _timers.Start();
-            try
-            {
-                _client.Connect(_serverConfig.IpAddress, _serverConfig.Port);
-            }
-            catch
-            {
-                Console.WriteLine($"connect {_serverConfig.IpAddress}:{_serverConfig.Port} faulted");
-                _needReConnecting = true;
-            }
-
+            Task.Run(async () => _client.ConnectAsync(_serverConfig.IpAddress, _serverConfig.Port)
+            .ConfigureAwait(false))
+                .ContinueWith(tresult =>
+                {
+                    if (tresult.Status == TaskStatus.Faulted)
+                    {
+                        Console.WriteLine($"connect {_serverConfig.IpAddress}:{_serverConfig.Port} faulted");
+                        _needReConnecting = true;
+                    }
+                });
             string line = null;
             while ((line = Console.ReadLine()) != "")
             {
@@ -101,8 +101,18 @@ namespace SimpleClient
                 {
                     Console.WriteLine("Reconnecting...");
                     _client.Disconnect();
-                    _client.Connect(_serverConfig.IpAddress, _serverConfig.Port);
-                    Console.WriteLine($"IsConnected = {_client.IsConnected}");
+                    Task.Run(async () => await _client.ConnectAsync(_serverConfig.IpAddress, _serverConfig.Port))
+                         .ContinueWith(tresult =>
+                         {
+                             if (tresult.Status == TaskStatus.Faulted)
+                             {
+                                 Console.WriteLine($"Connected Faulted.");
+                             }
+                             else
+                             {
+                                 Console.WriteLine($"IsConnected = {_client.IsConnected}");
+                             }
+                         });
                 }
                 else if (line == "exit")
                 {
@@ -122,7 +132,7 @@ namespace SimpleClient
             Console.WriteLine($"{record.Message} Sent to {record.EndPoint} with Error. {record.Error}");
 #if DEBUG
 
-            if(record.Error.Length>0)
+            if (record.Error.Length > 0)
             {
                 _client.Disconnect();
                 Environment.Exit(0);

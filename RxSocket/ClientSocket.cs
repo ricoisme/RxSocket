@@ -7,53 +7,58 @@ namespace RxSocket
 {
     public interface IClientSocket
     {
-        void Connect(string IP,int Port);
+        Task ConnectAsync(string IP, int Port);
         void Disconnect();
         bool IsConnected { get; }
-        Task SendAsync<T>(T message,int retryMax, Action<Record<T>> errorMessageCallback = null);
+        Task SendAsync<T>(T message, int retryMax, Action<Record<T>> errorMessageCallback = null);
     }
 
-    public sealed class ClientSocket: IClientSocket
+    public sealed class ClientSocket : IClientSocket
     {
-        private Socket _clientSocket;       
+        private Socket _clientSocket;
         public ClientSocket()
-        {          
+        {
             _clientSocket = new Socket(AddressFamily.InterNetwork,
-                SocketType.Stream, 
+                SocketType.Stream,
                 ProtocolType.Tcp);
         }
 
-        private Action<Socket> ShowConnected = (clientSocket) => 
+        private Action<Socket> ShowConnected = (clientSocket) =>
         {
             Console.WriteLine($"[{clientSocket.LocalEndPoint}] Connecting to [{clientSocket.RemoteEndPoint}]");
         };
 
         private Action<EndPoint> ShowDisconnected = (localEndPoint) =>
         {
-              Console.WriteLine($"[{localEndPoint}] Disconnected.");
+            Console.WriteLine($"[{localEndPoint}] Disconnected.");
         };
 
-        bool IClientSocket.IsConnected => _clientSocket.Connected;       
+        bool IClientSocket.IsConnected => _clientSocket.Connected;
 
-        void IClientSocket.Connect(string IP, int Port)
+        async Task IClientSocket.ConnectAsync(string IP, int Port)
         {
-            var ipAddress = IPAddress.Parse(IP);   
-            if(_clientSocket==null)
+            var ipAddress = IPAddress.Parse(IP);
+            if (_clientSocket == null)
             {
                 _clientSocket = new Socket(
                     AddressFamily.InterNetwork,
-                    SocketType.Stream, 
+                    SocketType.Stream,
                     ProtocolType.Tcp);
-            }        
-            _clientSocket.ConnectAsync(new IPEndPoint(ipAddress, Port))
-              .GetAwaiter().GetResult();        
-            ShowConnected(_clientSocket);
+            }
+            await _clientSocket.ConnectAsync(new IPEndPoint(ipAddress, Port))
+                .ContinueWith(tresult =>
+                {
+                    if (tresult.Status != TaskStatus.Faulted)
+                    {
+                        ShowConnected(_clientSocket);
+                    }
+                });
         }
 
         void IClientSocket.Disconnect()
         {
             var localEndPoint = _clientSocket.LocalEndPoint;
-            _clientSocket.Shutdown(SocketShutdown.Both);      
+            _clientSocket.Shutdown(SocketShutdown.Both);
             _clientSocket.Close();
             _clientSocket = null;
             ShowDisconnected(localEndPoint);
@@ -92,11 +97,11 @@ namespace RxSocket
                 if (!result)
                 {
                     var errorMessage = $"[{localEndPoint}] Disconnected.";
-                    callbackInvoke(errorMessage);                
+                    callbackInvoke(errorMessage);
                     ShowDisconnected(localEndPoint);
                 }
                 return Task.FromResult(result);
-            }   
+            }
             return _clientSocket.SendAsync(new ArraySegment<byte>(buffer), SocketFlags.None)
                 .ContinueWith(t =>
                 {
@@ -107,7 +112,7 @@ namespace RxSocket
                         callbackInvoke(errorMessage);
                     }
                 }, TaskContinuationOptions.OnlyOnFaulted);
-                //.ContinueWith(t=> t.GetAwaiter().GetResult(), TaskContinuationOptions.OnlyOnRanToCompletion);
+            //.ContinueWith(t=> t.GetAwaiter().GetResult(), TaskContinuationOptions.OnlyOnRanToCompletion);
         }
     }
 }
