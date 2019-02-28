@@ -14,7 +14,7 @@ The RxSocket use io.pipelines with RX to handle socket connection and networkstr
 
 it draw inspiration from [davidfowl's project](https://github.com/davidfowl/TcpEcho).
 
-IService interface of TcpSocketLib providing socket both client and server APIs. 
+ISocketService interface of TcpService providing socket both client and server APIs. 
 
 Another thing,also providing subscribe stream both sender and reciever.
 
