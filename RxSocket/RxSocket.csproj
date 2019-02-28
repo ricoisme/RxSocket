@@ -4,9 +4,10 @@
     <TargetFramework>netstandard2.0</TargetFramework>
     <LangVersion>7.2</LangVersion>
     <PackageId>RxSocketWithIoPipeLines</PackageId>
-    <Version>1.0.2</Version>
+    <Version>1.0.3</Version>
     <Authors>RiCo.Chen</Authors>
     <Company>RiCo.Chen</Company>
+    <Description>Mini wrapper Socket with Rx and IO.Pipelines</Description>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
   </PropertyGroup>
 
