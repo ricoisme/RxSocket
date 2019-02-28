@@ -8,7 +8,7 @@ using System.Reactive.Concurrency;
 using System.Reactive.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using TcpSocketLib;
+using RxSocket;
 
 namespace SimpleClient
 {

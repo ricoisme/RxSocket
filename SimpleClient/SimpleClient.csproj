@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -7,13 +7,13 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Content Include="..\TcpSocketLib\appsettings.json" Link="appsettings.json">
+    <Content Include="..\RxSocket\appsettings.json" Link="appsettings.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\TcpSocketLib\TcpSocketLib.csproj" />
+    <ProjectReference Include="..\RxSocket\RxSocket.csproj" />
   </ItemGroup>
 
 </Project>

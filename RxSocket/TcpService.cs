@@ -14,7 +14,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace TcpSocketLib
+namespace RxSocket
 {
     public interface IService
     {

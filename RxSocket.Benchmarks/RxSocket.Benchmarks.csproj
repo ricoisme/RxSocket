@@ -204,9 +204,9 @@
     <Analyzer Include="..\packages\Microsoft.CodeAnalysis.Analyzers.2.6.1\analyzers\dotnet\cs\Microsoft.CodeAnalysis.CSharp.Analyzers.dll" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\TcpSocketLib\TcpSocketLib.csproj">
+    <ProjectReference Include="..\RxSocket\RxSocket.csproj">
       <Project>{e386b710-44e7-4330-9ff2-38aab861807e}</Project>
-      <Name>TcpSocketLib</Name>
+      <Name>RxSocket</Name>
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

@@ -1,9 +1,9 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Net;
 using System.Text;
 
-namespace TcpSocketLib
+namespace RxSocket
 {
     [Serializable]
     public sealed class Record<T>

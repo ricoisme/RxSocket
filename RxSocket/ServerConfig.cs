@@ -1,5 +1,5 @@
 
-namespace TcpSocketLib
+namespace RxSocket
 {
     public sealed class ServerConfig
     {

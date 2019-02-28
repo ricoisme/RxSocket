@@ -1,7 +1,7 @@
-﻿using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace TcpSocketLib
+namespace RxSocket
 {
     public static class ServiceCollectionExtensions
     {
