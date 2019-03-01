@@ -2,6 +2,7 @@
 <p align=center>
 <a target="_blank" href="https://www.nuget.org/packages/RxSocketWithIoPipeLines/" title="nuget version"><img src="https://img.shields.io/badge/nuget-v1.0.0-blue.svg"></a>
 <a target="_blank" href="https://github.com/ricoisme/RxSocket/tree/master" title="Build Status"><img src="https://img.shields.io/badge/build-passing-green.svg"></a>
+<a target="_blank" href="https://github.com/ricoisme/RxSocket/tree/master/RxSocket.UnitTests" title="Test Status"><img src="https://img.shields.io/badge/tests-1%20passed-green.svg"></a>
 <a target="_blank" href="http://nodejs.org/download/" title="net standard version">
 <img src="https://img.shields.io/badge/netstandard-2.0-blue.svg"></a>
 <a target="_blank" href="https://opensource.org/licenses/MIT" title="License: MIT">
@@ -23,6 +24,7 @@ It is provided under the MIT License
 ## Features
 Simple Tcp Server with IO.Pipelines  
 Simple asynchronous event based Reciever and Sender
+Provide Retry Policy
 
 ## Usage
 To install RxSocketWithIoPipelines from within Visual studion, search for RxSocketWithIoPipeLines in the NuGet Package Manager UI, or run the following command in the Package Manager Console:
