@@ -23,7 +23,7 @@ It is provided under the MIT License
 
 ## Features
 Simple Tcp Server with IO.Pipelines  
-Simple asynchronous event based Reciever and Sender
+Simple asynchronous event based Reciever and Sender  
 Provide Retry Policy
 
 ## Usage
