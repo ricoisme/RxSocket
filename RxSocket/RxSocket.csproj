@@ -4,11 +4,14 @@
     <TargetFramework>netstandard2.0</TargetFramework>
     <LangVersion>7.2</LangVersion>
     <PackageId>RxSocketWithIoPipeLines</PackageId>
-    <Version>1.0.3</Version>
+    <Version>1.0.4</Version>
     <Authors>RiCo.Chen</Authors>
     <Company>RiCo.Chen</Company>
     <Description>Mini wrapper Socket with Rx and IO.Pipelines</Description>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <PackageProjectUrl>https://github.com/ricoisme/RxSocket</PackageProjectUrl>
+    <PackageTags>Reactive,Socket,Observable</PackageTags>
+    <PackageLicenseUrl>https://github.com/ricoisme/RxSocket/blob/master/LICENSE</PackageLicenseUrl>
   </PropertyGroup>
 
   <ItemGroup>
