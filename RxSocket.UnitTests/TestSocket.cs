@@ -1,11 +1,11 @@
 using System;
 using System.Linq;
+using System.Reactive.Concurrency;
+using System.Reactive.Linq;
 using System.Threading.Tasks;
 using FluentAssertions;
 using Xunit;
 using Xunit.Abstractions;
-using System.Reactive.Concurrency;
-using System.Reactive.Linq;
 
 namespace RxSocket.UnitTests
 {
@@ -22,7 +22,7 @@ namespace RxSocket.UnitTests
 
         [Fact(Timeout = 5 * 1000)]
         public void Can_Send_Receive_Message()
-        {        
+        {
             _mocks.ClientIsConnected.Should().BeTrue();
             _mocks.Reciever.Should().NotBeNull();
             _mocks.SendAsync("rico" + Environment.NewLine, 0);

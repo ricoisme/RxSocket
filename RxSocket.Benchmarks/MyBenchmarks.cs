@@ -6,7 +6,6 @@ using System.Threading.Tasks;
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Diagnosers;
 using BenchmarkDotNet.Mathematics;
-using BenchmarkDotNet.Order;
 
 namespace RxSocket.Benchmarks
 {

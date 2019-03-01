@@ -1,5 +1,3 @@
-using Microsoft.Extensions.Options;
-using Newtonsoft.Json;
 using System;
 using System.Buffers;
 using System.Collections.Concurrent;
@@ -14,6 +12,8 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Options;
+using Newtonsoft.Json;
 
 namespace RxSocket
 {
@@ -251,7 +251,7 @@ namespace RxSocket
                     Error = string.Empty
                 });
             }
-        }        
+        }
 
         private void ClientDispose()
         {
@@ -328,7 +328,8 @@ namespace RxSocket
                          Error = errorMessage
                      }
                     ),
-                    ex => {
+                    ex =>
+                    {
                         callbackInvoke($"{ex.Message}, {ex.StackTrace}");
                         _error.OnNext(new ErrorData("SendAsync", ex));
                     }
