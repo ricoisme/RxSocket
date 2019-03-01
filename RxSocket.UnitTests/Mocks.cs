@@ -17,31 +17,25 @@ namespace RxSocket.UnitTests
         public Mocks()
         {            
             _socketService = new TcpService(Const.Ip, Const.Port, Const.Backlog, Const.BufferSize);
+            _clientSocket=new ClientSocket();
             _socketService.Accepted.SubscribeOn(TaskPoolScheduler.Default)
               .Subscribe
               (
-               r =>
-               {
-                   if (_clientSocket == null)
-                   {
-                       _clientSocket = new ClientSocket();
-                       ClientConnectAsync();
-                   }                
-               },
-               ex => Console.WriteLine(ex),
+               r => ClientConnectAsync(),              
+               ex => throw ex,
                () => Console.WriteLine("Server Accepted completed")
               );
             _socketService.Reciever.SubscribeOn(TaskPoolScheduler.Default)
                 .Subscribe(
                 r => Console.WriteLine(r.Message),
-                ex => Console.WriteLine(ex),
+                ex => throw ex,
                 () => Console.WriteLine("Socket receiver completed")
                 );
         }
 
-        public async Task StartAsync()
+        public Task StartAsync()
         {
-            await _socketService.StartAsync().ConfigureAwait(false);
+            return _socketService.StartAsync();
         }
 
         public void Stop()
@@ -64,7 +58,5 @@ namespace RxSocket.UnitTests
           return _clientSocket.SendAsync<T>(message, retryMax, errorMessageCallback);
         }
     }
-
-    internal struct Void { }
 
 }

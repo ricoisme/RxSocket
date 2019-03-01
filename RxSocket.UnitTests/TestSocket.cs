@@ -1,6 +1,4 @@
 using System;
-using System.Net.Sockets;
-using System.Threading;
 using System.Linq;
 using System.Threading.Tasks;
 using FluentAssertions;
@@ -11,11 +9,11 @@ using System.Reactive.Linq;
 
 namespace RxSocket.UnitTests
 {
-    public class TestServer : IDisposable
+    public class TestSocket : IDisposable
     {
         private readonly Mocks _mocks;
         private readonly ITestOutputHelper _output;
-        public TestServer(ITestOutputHelper output)
+        public TestSocket(ITestOutputHelper output)
         {
             _mocks = new Mocks();
             _output = output;
@@ -24,12 +22,9 @@ namespace RxSocket.UnitTests
 
         [Fact(Timeout = 5 * 1000)]
         public void Can_Send_Receive_Message()
-        {
-            _mocks.Accepted.SubscribeOn(TaskPoolScheduler.Default)
-                 .DistinctUntilChanged().Take(1).GetAwaiter().GetResult();
+        {        
             _mocks.ClientIsConnected.Should().BeTrue();
             _mocks.Reciever.Should().NotBeNull();
-
             _mocks.SendAsync("rico" + Environment.NewLine, 0);
 
             var message = _mocks.Reciever.SubscribeOn(TaskPoolScheduler.Default)

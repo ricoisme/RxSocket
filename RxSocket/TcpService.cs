@@ -140,7 +140,6 @@ namespace RxSocket
         {
             Console.WriteLine($"[{socket.RemoteEndPoint}]: connected");
             _connections.AddOrUpdate(socket.GetHashCode(), socket, (key, oldValue) => socket);
-            _accepted.OnNext(socket);
             ShowTotalConnections(_connections.Count);
 
             var pipe = new Pipe();
