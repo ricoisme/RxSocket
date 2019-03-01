@@ -32,7 +32,7 @@ namespace RxSocket
     public sealed class TcpService : ISocketService
     {
         private bool _accept { get; set; }
-        private CancellationTokenSource _cancellation = new CancellationTokenSource();
+        private readonly CancellationTokenSource _cancellation = new CancellationTokenSource();
         private readonly ISubject<Socket> _accepted = new Subject<Socket>();
         private readonly ISubject<EndPoint> _disconnected = new Subject<EndPoint>();
         private readonly ISubject<ErrorData> _error = new Subject<ErrorData>();
@@ -119,7 +119,7 @@ namespace RxSocket
             await (this as ISocketService).SendAsync("Debug Mode: send message");
             await (this as ISocketService).SendAsync("Debug Mode: send message again");
 #endif
-            await Task.Run(() => Listen());
+            await Task.Run(Listen);
         }
 
         private async Task Listen()
@@ -130,7 +130,7 @@ namespace RxSocket
                 // Continue listening.               
                 while (true)
                 {
-                    var socket = await _listenerSocket.AcceptAsync();
+                    var socket = await _listenerSocket.AcceptAsync().ConfigureAwait(false);
                     _ = ProcessLinesAsync(socket, _bufferSize);
                 }
             }
@@ -252,55 +252,7 @@ namespace RxSocket
                     Error = string.Empty
                 });
             }
-        }
-
-        #region legacy code
-
-        //private async void listenTcp()
-        //{
-        //    var clientTask = _listenerSocket.AcceptTcpClientAsync(); // Get the client           
-        //    if (clientTask.Result != null)
-        //    {
-        //        var tcpClient = clientTask.Result;
-        //        _connections.AddOrUpdate(tcpClient.GetHashCode(), tcpClient,
-        //            (key, oldValue) => tcpClient);
-        //        Console.WriteLine($"Client {tcpClient.GetHashCode()} connected. Waiting for data.");
-
-
-        //        var message = string.Empty;
-
-        //        await Task.Run(() => {
-        //            while (!message.StartsWith("quit"))
-        //            {         
-        //               try
-        //                {
-        //                    //byte[] data = Encoding.UTF8.GetBytes("Send next data: [enter 'quit' to terminate] ");
-        //                    //tcpClient.GetStream().Write(data, 0, data.Length);
-
-        //                    byte[] buffer = new byte[1024];
-        //                    int bytes = tcpClient.GetStream().Read(buffer, 0, buffer.Length);
-        //                    while (bytes > 0)
-        //                    {
-        //                        message = Encoding.UTF8.GetString(buffer,0, bytes);
-        //                        bytes = 0;
-        //                        if (!tcpClient.GetStream().DataAvailable)
-        //                            break;
-        //                    }
-        //                    Console.WriteLine(message);
-        //                }
-        //                catch
-        //                { }           
-        //            }
-        //        }).ConfigureAwait(false);
-
-        //        Console.WriteLine($"Closing {tcpClient.GetHashCode()} connection. {_connections.Count} connected at the moment.");
-        //        _connections.TryRemove(tcpClient.GetHashCode(), out tcpClient);
-        //        //tcpClient.GetStream().Dispose();
-        //        tcpClient.Close();// dont need call both dispose and close. which choose one
-        //    }
-        //}
-
-        #endregion
+        }        
 
         private void ClientDispose()
         {
@@ -377,7 +329,10 @@ namespace RxSocket
                          Error = errorMessage
                      }
                     ),
-                    ex => { callbackInvoke($"{ex.Message}, {ex.StackTrace}"); }
+                    ex => {
+                        callbackInvoke($"{ex.Message}, {ex.StackTrace}");
+                        _error.OnNext(new ErrorData("SendAsync", ex));
+                    }
                 ).ToTask(_cancellation.Token);
             }
 

@@ -16,6 +16,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RxSocket.Benchmarks", "RxSocket.Benchmarks\RxSocket.Benchmarks.csproj", "{4BE253B5-787E-4272-95D0-23AAF762A832}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RxSocket.UnitTests", "RxSocket.UnitTests\RxSocket.UnitTests.csproj", "{16B2DD5D-CC8D-4011-A84A-0486CC64B7D0}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -38,6 +40,10 @@ Global
 		{4BE253B5-787E-4272-95D0-23AAF762A832}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{4BE253B5-787E-4272-95D0-23AAF762A832}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{4BE253B5-787E-4272-95D0-23AAF762A832}.Release|Any CPU.Build.0 = Release|Any CPU
+		{16B2DD5D-CC8D-4011-A84A-0486CC64B7D0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{16B2DD5D-CC8D-4011-A84A-0486CC64B7D0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{16B2DD5D-CC8D-4011-A84A-0486CC64B7D0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{16B2DD5D-CC8D-4011-A84A-0486CC64B7D0}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

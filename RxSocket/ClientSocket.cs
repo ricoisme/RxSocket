@@ -33,7 +33,7 @@ namespace RxSocket
             Console.WriteLine($"[{localEndPoint}] Disconnected.");
         };
 
-        bool IClientSocket.IsConnected => _clientSocket.Connected;
+        bool IClientSocket.IsConnected => Utility.IsConnect(_clientSocket);
 
         async Task IClientSocket.ConnectAsync(string IP, int Port)
         {
