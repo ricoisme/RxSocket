@@ -34,7 +34,7 @@ Install-Package RxSocketWithIoPipeLines -Version 1.0.0
 
 ## TCP Server
 ```
-var  tcpServer = serviceProvider.GetRequiredService<IService>();
+var  tcpServer = serviceProvider.GetRequiredService<ISocketService>();
  tcpServer.Accepted.SubscribeOn(TaskPoolScheduler.Default)
                 .Subscribe
                 (
